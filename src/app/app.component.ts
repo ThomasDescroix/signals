@@ -1,7 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, computed, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { BehaviorSubject } from 'rxjs/internal/BehaviorSubject';
-import { combineLatest, distinctUntilChanged, map } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 
 @Component({
@@ -9,14 +7,14 @@ import { FormsModule } from '@angular/forms';
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
-    <input [ngModel]="searchInput$ | async" (ngModelChange)="searchItems($event)" placeholder="Search..." />
+    <input [ngModel]="searchInput()" (ngModelChange)="searchItems($event)" placeholder="Search..." />
 
     <ul>
-      <li *ngFor="let item of paginatedAndFilteredItems$ | async">{{ item.name }}</li>
+      <li *ngFor="let item of paginatedAndFilteredItems()">{{ item.name }}</li>
     </ul>
 
     <button (click)="goToPreviousPage()">Previous</button>
-    pag. {{ currentPage$ | async }}
+    pag. {{ currentPage() }}
     <button (click)="goToNextPage()">Next</button>
   `,
   styles: [],
@@ -34,29 +32,30 @@ export class AppComponent {
   readonly firstPage = 1;
   itemsPerPage = 2;
 
-  searchInput$ = new BehaviorSubject('');
-  currentPage$ = new BehaviorSubject(this.firstPage);
+  searchInput = signal('');
+  currentPage = signal(this.firstPage);
 
-  paginatedAndFilteredItems$ = combineLatest([this.searchInput$, this.currentPage$]).pipe(
-    map(([searchInput, currentPage]) => {
-      const filteredItems = this.items.filter((item) => item.name.includes(searchInput));
-      const firstItemIndex = (currentPage - 1) * this.itemsPerPage;
-      const lastItemIndex = firstItemIndex + this.itemsPerPage;
-      return filteredItems.slice(firstItemIndex, lastItemIndex);
-    }),
-    distinctUntilChanged()
-  );
+  paginatedAndFilteredItems = computed(() => {
+    const startIndex = (this.currentPage() - 1) * this.itemsPerPage;
+    const endIndex = startIndex + this.itemsPerPage;
+    
+    return this.items.filter(
+      item => item.name.toLocaleLowerCase().includes(this.searchInput().toLocaleLowerCase())
+    ).slice(startIndex, endIndex);
+  });
 
   searchItems(searchInput: string) {
-    this.searchInput$.next(searchInput);
-    this.currentPage$.next(this.firstPage);
+    this.searchInput.set(searchInput);
+    if (this.currentPage() > this.firstPage) {
+      this.currentPage.set(this.firstPage);
+    }
   }
 
   goToPreviousPage() {
-    this.currentPage$.next(Math.max(this.currentPage$.value - 1, this.firstPage));
+    this.currentPage.update((currentPage) => Math.max(currentPage - 1, 1));
   }
 
   goToNextPage() {
-    this.currentPage$.next(Math.min(this.currentPage$.value + 1, this.itemsPerPage + 1));
+    this.currentPage.update((currentPage) => Math.min(currentPage + 1, this.itemsPerPage + 1));
   }
 }
