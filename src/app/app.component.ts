@@ -1,35 +1,62 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { BehaviorSubject } from 'rxjs/internal/BehaviorSubject';
+import { combineLatest, distinctUntilChanged, map } from 'rxjs';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
-    <!--The content below is only a placeholder and can be replaced.-->
-    <div style="text-align:center" class="content">
-      <h1>
-        Welcome to {{title}}!
-      </h1>
-      <span style="display: block">{{ title }} app is running!</span>
-      <img width="300" alt="Angular Logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTAgMjUwIj4KICAgIDxwYXRoIGZpbGw9IiNERDAwMzEiIGQ9Ik0xMjUgMzBMMzEuOSA2My4ybDE0LjIgMTIzLjFMMTI1IDIzMGw3OC45LTQzLjcgMTQuMi0xMjMuMXoiIC8+CiAgICA8cGF0aCBmaWxsPSIjQzMwMDJGIiBkPSJNMTI1IDMwdjIyLjItLjFWMjMwbDc4LjktNDMuNyAxNC4yLTEyMy4xTDEyNSAzMHoiIC8+CiAgICA8cGF0aCAgZmlsbD0iI0ZGRkZGRiIgZD0iTTEyNSA1Mi4xTDY2LjggMTgyLjZoMjEuN2wxMS43LTI5LjJoNDkuNGwxMS43IDI5LjJIMTgzTDEyNSA1Mi4xem0xNyA4My4zaC0zNGwxNy00MC45IDE3IDQwLjl6IiAvPgogIDwvc3ZnPg==">
-    </div>
-    <h2>Here are some links to help you start: </h2>
+    <input [ngModel]="searchInput$ | async" (ngModelChange)="searchItems($event)" placeholder="Search..." />
+
     <ul>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://angular.io/tutorial">Tour of Heroes</a></h2>
-      </li>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://angular.io/cli">CLI Documentation</a></h2>
-      </li>
-      <li>
-        <h2><a target="_blank" rel="noopener" href="https://blog.angular.io/">Angular blog</a></h2>
-      </li>
+      <li *ngFor="let item of paginatedAndFilteredItems$ | async">{{ item.name }}</li>
     </ul>
-    
+
+    <button (click)="goToPreviousPage()">Previous</button>
+    pag. {{ currentPage$ | async }}
+    <button (click)="goToNextPage()">Next</button>
   `,
   styles: [],
 })
 export class AppComponent {
-  title = 'signals';
+  items = [
+    { id: 1, name: 'Item 1' },
+    { id: 2, name: 'Item 2' },
+    { id: 3, name: 'Item 3' },
+    { id: 4, name: 'Item 4' },
+    { id: 5, name: 'Item 5' },
+    { id: 6, name: 'Item 6' },
+  ];
+
+  readonly firstPage = 1;
+  itemsPerPage = 2;
+
+  searchInput$ = new BehaviorSubject('');
+  currentPage$ = new BehaviorSubject(this.firstPage);
+
+  paginatedAndFilteredItems$ = combineLatest([this.searchInput$, this.currentPage$]).pipe(
+    map(([searchInput, currentPage]) => {
+      const filteredItems = this.items.filter((item) => item.name.includes(searchInput));
+      const firstItemIndex = (currentPage - 1) * this.itemsPerPage;
+      const lastItemIndex = firstItemIndex + this.itemsPerPage;
+      return filteredItems.slice(firstItemIndex, lastItemIndex);
+    }),
+    distinctUntilChanged()
+  );
+
+  searchItems(searchInput: string) {
+    this.searchInput$.next(searchInput);
+    this.currentPage$.next(this.firstPage);
+  }
+
+  goToPreviousPage() {
+    this.currentPage$.next(Math.max(this.currentPage$.value - 1, this.firstPage));
+  }
+
+  goToNextPage() {
+    this.currentPage$.next(Math.min(this.currentPage$.value + 1, this.itemsPerPage + 1));
+  }
 }
